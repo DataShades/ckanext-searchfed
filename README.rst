@@ -77,9 +77,13 @@ Config Settings
 ---------------
 
     ckan.search_federation = data.brisbane.gov.au https://data.brisbane.qld.gov.au/data data.gov.au http://data.gov.au
+
     ckan.search_federation.label = data.sa.gov.au
+
     ckan.search_federation.extra_keys = harvest_portal search_federation_portal
+
     ckan.search_federation.use_remote_facet_results = false
+    
     ckan.search_federation.min_search_results = 3
 
 
