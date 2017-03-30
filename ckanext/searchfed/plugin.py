@@ -1,5 +1,3 @@
-import os
-
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
 import pylons.config as config
@@ -8,6 +6,7 @@ import urllib
 import urllib2
 import json
 import re
+from pylons.decorators.cache import beaker_cache
 
 import logging
 
@@ -42,7 +41,8 @@ class SearchfedPlugin(plugins.SingletonPlugin):
     # IPackageController
 
     def after_search(self, search_results, search_params):
-        limit = int(config.get('ckan.search_federation.min_search_results', 20))
+        limit = int(config.get(
+            'ckan.search_federation.min_search_results', 20))
 
         def _append_remote_search(search_keys, remote_org_label,
                                   remote_org_url, fed_labels, type_whitelist):
@@ -88,6 +88,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 remote_limit = limit
                 remote_start = start - local_results_num
 
+            @beaker_cache(expire=3600)
             def _fetch_data(fetch_start, fetch_num):
                 data = urllib.quote(json.dumps({
                     'q': search_params['q'],
@@ -132,31 +133,44 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                             remote_limit))
                         if temp_results:
                             use_temp = True
-                            remote_results['result']['results'] = temp_results['result']['results']
+                            remote_results['result']['results'] = temp_results[
+                                'result']['results']
 
                 if not use_temp:
-                    remote_results['result']['results'] = remote_results['result']['results'][
-                                                          remote_start:remote_limit + remote_start - 1]
+                    remote_results['result']['results'] = remote_results[
+                        'result']['results'][
+                        remote_start:remote_limit + remote_start - 1]
 
             for dataset in remote_results['result']['results']:
                 extras = dataset.get('extras', [])
                 if not h.get_pkg_dict_extra(dataset, 'harvest_url'):
-                    extras += [{'key': 'harvest_url', 'value': remote_org_url + '/dataset/' + dataset['id']}]
+                    extras += [
+                        {
+                            'key': 'harvest_url',
+                            'value': remote_org_url + '/dataset/' + dataset[
+                                'id']
+                        }
+                    ]
                 for k in search_keys:
                     if not h.get_pkg_dict_extra(dataset, k):
                         extras += [{'key': k, 'value': remote_org_label}]
-                dataset.update(extras=extras, harvest_source_title=remote_org_label)
+                dataset.update(
+                    extras=extras, harvest_source_title=remote_org_label)
             search_results['count'] += remote_results['result']['count']
             if not count_only:
-                search_results['results'] += remote_results['result']['results']
-                if 'search_facets' in remote_results['result'] and self.use_remote_facets:
-                    search_results['search_facets'] = remote_results['result']['search_facets']
+                search_results['results'] += remote_results['result'][
+                                                                'results']
+                if ('search_facets' in remote_results['result'] and
+                        self.use_remote_facets):
+                    search_results['search_facets'] = remote_results['result'][
+                                                            'search_facets']
 
         # If the search has failed to produce a full page of results, we augment
         toolkit.c.local_item_count = search_results['count']
 
-        if search_results['count'] < limit and not re.search("|".join(self.search_fed_label_blacklist),
-                                                             search_params['fq'][0]):
+        if search_results['count'] < limit and not re.search(
+                "|".join(self.search_fed_label_blacklist),
+                search_params['fq'][0]):
             for key, val in self.search_fed_dict.iteritems():
                 _append_remote_search(
                     self.search_fed_keys, key, val, self.search_fed_labels,
