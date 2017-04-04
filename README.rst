@@ -39,15 +39,25 @@ To install ckanext-searchfed:
 Config Settings
 ---------------
 
-    ckan.search_federation = data.brisbane.gov.au https://data.brisbane.qld.gov.au/data data.gov.au http://data.gov.au
+    1. Label and URL for sites where search can take data (if empty default value = {}). This labels will appears to the left of dataset title additional results. For example Label = ``FROM DATA.BRISBANE.GOV.AU``, URL = ``https://data.brisbane.qld.gov.au/data``:
 
-    ckan.search_federation.label = data.sa.gov.au
+        ckan.search_federation = data.brisbane.gov.au https://data.brisbane.qld.gov.au/data data.gov.au http://data.gov.au
 
-    ckan.search_federation.extra_keys = harvest_portal search_federation_portal
+    2. Also use with ckan.search_federation labels for filter query (if empty default value = ""). For example ['data.brisbane.gov.au', 'data.gov.au', 'data.sa.gov.au']:
 
-    ckan.search_federation.use_remote_facet_results = false
+        ckan.search_federation.label = data.sa.gov.au
 
-    ckan.search_federation.min_search_results = 3
+    3. Use for filter query when fetch data. In result we will have filter query for search for example ``-harvest_portal:data.brisbane.gov.au`` (if empty default value = 'harvest_portal'):
+
+        ckan.search_federation.extra_keys = harvest_portal search_federation_portal
+
+    4. If true and 'search_facets' in remote search results we will use remote search facets instead local facets (if empty default value = False):
+
+        ckan.search_federation.use_remote_facet_results = false
+
+    5. If local results is less than ``ckan.search_federation.min_search_results`` value, searchfed will run and added more datasets below local results (if empty default value = 20):
+
+        ckan.search_federation.min_search_results = 3
 
 
 ------------------------
