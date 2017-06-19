@@ -88,7 +88,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 remote_limit = limit
                 remote_start = start - local_results_num
 
-            @beaker_cache(expire=3600)
+            @beaker_cache(expire=3600, query_args=True)
             def _fetch_data(fetch_start, fetch_num):
                 data = urllib.quote(json.dumps({
                     'q': search_params['q'],
@@ -139,8 +139,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 if not use_temp:
                     remote_results['result']['results'] = remote_results[
                         'result']['results'][
-                        remote_start:remote_limit + remote_start - 1]
-
+                        remote_start:remote_limit + remote_start]
             for dataset in remote_results['result']['results']:
                 extras = dataset.get('extras', [])
                 if not h.get_pkg_dict_extra(dataset, 'harvest_url'):
