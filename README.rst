@@ -59,6 +59,9 @@ Config Settings
 
         ckan.search_federation.min_search_results = 3
 
+    6. If true - results for API search include remote datasets. If false - only local datasets are included into API search results
+
+        ckan.search_federation.api_federation = false
 
 ------------------------
 Development Installation
