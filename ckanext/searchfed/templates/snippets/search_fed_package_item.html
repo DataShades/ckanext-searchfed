@@ -33,12 +33,7 @@ Example:
             <i class="fa-link icon-link"></i>
             From {{h.get_pkg_dict_extra(package,'harvest_portal')}}
           </span>
-          {% if current_loop_index and current_loop_index <= c.local_item_count %}
-            {% set pkg_url = h.url_for(controller='package', action='read', id=package.name) %}
-          {% else %}
-            {% set pkg_url = h.get_pkg_dict_extra(package,'harvest_url') %}
-          {% endif %}
-          <a href="{{pkg_url}}"  data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" class="searchpartnership-url-analytics" target="_blank"> {{h.truncate(title, truncate_title)}} </a>
+          <a href="{{h.get_pkg_dict_extra(package,'harvest_url')}}"  data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" class="searchpartnership-url-analytics" target="_blank"> {{h.truncate(title, truncate_title)}} </a>
         {% else %}
           {% if package.get('unpublished', '').startswith('True') %}
             <span class="dataset-private label label-info">{{ _('Unpublished') }}</span>
@@ -63,11 +58,11 @@ Example:
       <ul class="dataset-resources unstyled">
         {% for resource in h.dict_list_reduce(package.resources, 'format') %}
           <li>
-            {% if h.get_pkg_dict_extra(package,'harvest_portal') %}
-                <a href="{{ pkg_url }}" class="label searchpartnership-url-analytics" data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" data-format="{{ resource.lower() }}">{{ resource }}</a>
-            {% else %}
-                <a href="{{ pkg_url }}" class="label" data-format="{{ resource.lower() }}">{{ resource }}</a>
-            {% endif %}
+          {% if h.get_pkg_dict_extra(package,'harvest_portal') %}
+              <a href="{{h.get_pkg_dict_extra(package,'harvest_url')}}" class="label searchpartnership-url-analytics" data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" data-format="{{ resource.lower() }}">{{ resource }}</a>
+          {% else %}
+              <a href="{{ h.url_for(controller='package', action='read', id=package.name) }}" class="label" data-format="{{ resource.lower() }}">{{ resource }}</a>
+          {% endif %}
           </li>
         {% endfor %}
       </ul>
