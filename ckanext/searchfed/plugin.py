@@ -189,8 +189,8 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         include_remote_datasets = toolkit.asbool(
             config.get('ckan.search_federation.api_federation', False))
         route_dict = toolkit.request.environ.get('pylons.routes_dict')
-        route_ctrl = route_dict['controller']
-        used_controller = True if route_ctrl != 'api' else False
+        route_lfunc = route_dict.get('logic_function')
+        used_controller = True if route_lfunc != 'package_search' else False
         if include_remote_datasets or (
                 not include_remote_datasets and used_controller):
             if search_results['count'] < limit and not re.search(
