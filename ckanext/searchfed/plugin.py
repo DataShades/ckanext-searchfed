@@ -40,6 +40,13 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
     # IPackageController
 
+    def before_search(self, search_params):
+        limit = int(config.get(
+            'ckan.search_federation.min_search_results', 20))
+        rows = search_params.get('rows', None)
+        search_params['rows'] = rows if rows is not None else limit
+        return search_params
+
     def after_search(self, search_results, search_params):
         limit = int(config.get(
             'ckan.search_federation.min_search_results', 20))
@@ -49,7 +56,9 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
             local_results_num = len(search_results['results'])
             facet_fields = search_params.get('facet.field', [])
-
+            remote_results_num = 0
+            # query.run increase by 1, so we need to reduce by 1
+            limit = search_params.get('rows') - 1
             fq = " ".join(g for g in
                           map(lambda sk: " ".join(e for e in map(
                               lambda x: "-" + sk + ":" + str(x), fed_labels)),
@@ -86,7 +95,10 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 remote_start = 0
             else:
                 remote_limit = limit
-                remote_start = start - local_results_num
+                if local_results_num:
+                    remote_start = start - local_results_num
+                else:
+                    remote_start = 0
 
             @beaker_cache(expire=3600, query_args=True)
             def _fetch_data(fetch_start, fetch_num):
@@ -153,11 +165,19 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 for k in search_keys:
                     if not h.get_pkg_dict_extra(dataset, k):
                         extras += [{'key': k, 'value': remote_org_label}]
+                if not h.get_pkg_dict_extra(dataset, 'federation_source'):
+                    extras += [{'key': 'federation_source',
+                                'value': remote_org_url}]
                 dataset.update(
                     extras=extras, harvest_source_title=remote_org_label)
             search_results['count'] += remote_results['result']['count']
             if not count_only:
-                search_results['results'] += remote_results['result'][
+                if (toolkit.c.local_item_count + remote_results_num <= start) and not used_controller:
+                    search_results['results'] = []
+                elif (not(toolkit.c.local_item_count >= limit) or
+                        (search_results['count'] == limit + start) or
+                        not(limit + start < search_results['count'])):
+                    search_results['results'] += remote_results['result'][
                                                                 'results']
                 if ('search_facets' in remote_results['result'] and
                         self.use_remote_facets):
@@ -166,13 +186,19 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
         # If the search has failed to produce a full page of results, we augment
         toolkit.c.local_item_count = search_results['count']
-
-        if search_results['count'] < limit and not re.search(
-                "|".join(self.search_fed_label_blacklist),
-                search_params['fq'][0]):
-            for key, val in self.search_fed_dict.iteritems():
-                _append_remote_search(
-                    self.search_fed_keys, key, val, self.search_fed_labels,
-                    self.search_fed_dataset_whitelist)
+        include_remote_datasets = toolkit.asbool(
+            config.get('ckan.search_federation.api_federation', False))
+        route_dict = toolkit.request.environ.get('pylons.routes_dict')
+        route_ctrl = route_dict['controller']
+        used_controller = True if route_ctrl != 'api' else False
+        if include_remote_datasets or (
+                not include_remote_datasets and used_controller):
+            if search_results['count'] < limit and not re.search(
+                    "|".join(self.search_fed_label_blacklist),
+                    search_params['fq'][0]):
+                for key, val in self.search_fed_dict.iteritems():
+                    _append_remote_search(
+                        self.search_fed_keys, key, val, self.search_fed_labels,
+                        self.search_fed_dataset_whitelist)
 
         return search_results
