@@ -27,7 +27,7 @@ Example:
                 {% set first_remote_package = True %}
                 {% for package in packages %}
                     {% if current_loop_index <= c.local_item_count %}
-                        {% snippet 'snippets/search_fed_package_item.html', package=package, item_class=item_class, hide_resources=hide_resources, banner=banner, truncate=truncate, truncate_title=truncate_title, current_loop_index=current_loop_index %}
+                        {% snippet 'snippets/search_fed_package_item.html', package=package, item_class=item_class, hide_resources=hide_resources, banner=banner, truncate=truncate, truncate_title=truncate_title %}
                     {% else %}
                         {% if h.get_pkg_dict_extra(package,'harvest_portal') and first_remote_package %}
                             {% set first_remote_package = False %}
