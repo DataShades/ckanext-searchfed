@@ -7,6 +7,8 @@ import urllib2
 import json
 import re
 from pylons.decorators.cache import beaker_cache
+from ckan.lib.base import abort
+from ckan.common import request
 
 import logging
 
@@ -55,10 +57,16 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                                   remote_org_url, fed_labels, type_whitelist):
 
             local_results_num = len(search_results['results'])
-            facet_fields = search_params.get('facet.field', [])
-            remote_results_num = 0
             # query.run increase by 1, so we need to reduce by 1
             limit = search_params.get('rows') - 1
+            current_page = request.params.get('page', 1)
+            try:
+                current_page = int(current_page)
+                if current_page < 1:
+                    raise ValueError("Negative number not allowed")
+            except ValueError, e:
+                abort(400, ('"page" parameter must be a positive integer'))
+
             fq = " ".join(g for g in
                           map(lambda sk: " ".join(e for e in map(
                               lambda x: "-" + sk + ":" + str(x), fed_labels)),
@@ -79,26 +87,27 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                             fq_monop != "-" and
                             fq_value not in type_whitelist):
                         return
-
-                    if fq_key.lower() in facet_fields:
-                        fq += " " + fq_monop + fq_key + ":" + fq_value
+                    fq += " " + fq_monop + fq_key + ":" + fq_value
                 else:
                     fq += fq_entry
-
             count_only = False
             start = search_params.get('start', 0)
-
-            if local_results_num >= start:
-                remote_limit = limit - local_results_num + start
+            if local_results_num > start:
+                remote_limit = limit - local_results_num
                 if remote_limit <= 0:
                     count_only = True
                 remote_start = 0
             else:
                 remote_limit = limit
-                if local_results_num:
-                    remote_start = start - local_results_num
+                if not used_controller:
+                    remote_start = start - toolkit.c.local_item_count
                 else:
-                    remote_start = 0
+                    if current_page == 1:
+                        remote_start = 0
+                    elif current_page == 2:
+                        remote_start = limit - toolkit.c.local_item_count
+                    else:
+                        remote_start = limit - toolkit.c.local_item_count + limit * (current_page - 2)
 
             @beaker_cache(expire=3600, query_args=True)
             def _fetch_data(fetch_start, fetch_num):
@@ -123,7 +132,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 content = rsp.read()
                 return json.loads(content)
 
-            remote_results = _fetch_data(0, 99999)
+            remote_results = _fetch_data(remote_start, remote_limit)
 
             # Only continue if the remote fetch was successful
             if remote_results is None:
@@ -132,7 +141,6 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             if count_only:
                 remote_results['result']['results'] = []
             else:
-                use_temp = False
                 remote_results_num = len(remote_results['result']['results'])
                 if remote_results_num <= remote_limit + remote_start:
                     if remote_results['result']['count'] > remote_results_num:
@@ -144,14 +152,9 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                             remote_results['result']['count'] - remote_start,
                             remote_limit))
                         if temp_results:
-                            use_temp = True
                             remote_results['result']['results'] = temp_results[
                                 'result']['results']
 
-                if not use_temp:
-                    remote_results['result']['results'] = remote_results[
-                        'result']['results'][
-                        remote_start:remote_limit + remote_start]
             for dataset in remote_results['result']['results']:
                 extras = dataset.get('extras', [])
                 if not h.get_pkg_dict_extra(dataset, 'harvest_url'):
@@ -172,11 +175,9 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                     extras=extras, harvest_source_title=remote_org_label)
             search_results['count'] += remote_results['result']['count']
             if not count_only:
-                if (toolkit.c.local_item_count + remote_results_num <= start) and not used_controller:
+                if not limit or start > search_results['count']:
                     search_results['results'] = []
-                elif (not(toolkit.c.local_item_count >= limit) or
-                        (search_results['count'] == limit + start) or
-                        not(limit + start < search_results['count'])):
+                elif toolkit.c.local_item_count < limit + start:
                     search_results['results'] += remote_results['result'][
                                                                 'results']
                 if ('search_facets' in remote_results['result'] and
@@ -191,8 +192,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         route_dict = toolkit.request.environ.get('pylons.routes_dict')
         route_lfunc = route_dict.get('logic_function')
         used_controller = True if route_lfunc != 'package_search' else False
-        if include_remote_datasets or (
-                not include_remote_datasets and used_controller):
+        if include_remote_datasets or used_controller:
             if search_results['count'] < limit and not re.search(
                     "|".join(self.search_fed_label_blacklist),
                     search_params['fq'][0]):
