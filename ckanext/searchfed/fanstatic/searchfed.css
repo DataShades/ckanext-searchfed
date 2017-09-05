@@ -17,3 +17,7 @@
     text-decoration: inherit;
     -webkit-font-smoothing: antialiased;
 }
+
+.dataset-heading .dataset-label-inverse:hover, .dataset-heading .dataset-label-inverse:focus {
+    text-decoration: none;
+}
