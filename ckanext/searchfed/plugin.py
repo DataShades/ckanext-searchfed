@@ -99,7 +99,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 remote_start = 0
             else:
                 remote_limit = limit
-                if not used_controller:
+                if not used_package_controller:
                     remote_start = start - toolkit.c.local_item_count
                 else:
                     if current_page == 1:
