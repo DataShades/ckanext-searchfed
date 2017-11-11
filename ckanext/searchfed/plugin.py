@@ -192,7 +192,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         route_dict = toolkit.request.environ.get('pylons.routes_dict')
         ctrl_name = route_dict.get('controller')
         used_package_controller = True if ctrl_name == 'package' else False
-        if include_remote_datasets or used_package_controller:
+        if include_remote_datasets and used_package_controller:
             if search_results['count'] < limit and not re.search(
                     "|".join(self.search_fed_label_blacklist),
                     search_params['fq'][0]):
