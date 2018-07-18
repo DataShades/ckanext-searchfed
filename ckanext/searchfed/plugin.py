@@ -1,16 +1,17 @@
+import logging
+import requests
+import re
+
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
 import pylons.config as config
 import ckan.lib.helpers as h
-import urllib
-import urllib2
-import json
-import re
+
 from pylons.decorators.cache import beaker_cache
 from ckan.lib.base import abort
-from ckan.common import request
+from ckan.common import request, c
 
-import logging
+
 
 log = logging.getLogger(__name__)
 
@@ -64,141 +65,136 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 current_page = int(current_page)
                 if current_page < 1:
                     raise ValueError("Negative number not allowed")
-            except ValueError, e:
+            except ValueError:
                 abort(400, ('"page" parameter must be a positive integer'))
 
-            fq = " ".join(g for g in
-                          map(lambda sk: " ".join(e for e in map(
-                              lambda x: "-" + sk + ":" + str(x), fed_labels)),
-                              search_keys))
-            for fq_entry in toolkit.aslist(search_params['fq'][0]):
-                fq_entry = fq_entry.replace('/"', '"').replace("//", "")
-                fq_split = fq_entry.split(':', 1)
-                if len(fq_split) == 2:
-                    fq_key = fq_split[0]
-                    fq_value = fq_split[1]
-                    fq_monop = ""
-                    if fq_key[0] in ['+', '-']:
-                        fq_monop = fq_entry[:1]
-                        fq_key = fq_key[1:]
+            fq = ' '.join(
+                '-{}:{}'.format(key, val)
+                for key in search_keys
+                for val in fed_labels
+                if key and val
+            )
+            fq = _update_fq(fq, toolkit.aslist(search_params['fq'][0]), type_whitelist)
 
-                    # Dataset whitelist check
-                    if (fq_key == 'dataset_type' and
-                            fq_monop != "-" and
-                            fq_value not in type_whitelist):
-                        return
-                    fq += " " + fq_monop + fq_key + ":" + fq_value
-                else:
-                    fq += fq_entry
             count_only = False
             start = search_params.get('start', 0)
+
+            remote_start = 0
             if local_results_num > start:
                 remote_limit = limit - local_results_num
                 if remote_limit <= 0:
                     count_only = True
-                remote_start = 0
             else:
                 remote_limit = limit
-                if not used_package_controller:
-                    remote_start = start - toolkit.c.local_item_count
-                else:
-                    if current_page == 1:
-                        remote_start = 0
-                    elif current_page == 2:
-                        remote_start = limit - toolkit.c.local_item_count
-                    else:
-                        remote_start = limit - toolkit.c.local_item_count + limit * (current_page - 2)
+                if current_page > 1:
+                    remote_start = limit - toolkit.c.local_item_count + limit * (current_page - 2)
 
             @beaker_cache(expire=3600, query_args=True)
             def _fetch_data(fetch_start, fetch_num):
-                data = urllib.quote(json.dumps({
+                url = remote_org_url + '/api/3/action/package_search'
+                params = {
                     'q': search_params['q'],
                     'fq': fq,
-                    'facet.field': search_params.get('facet.field', []),
+                    'facet.field': '["organization", "license_id", "tags", "group", "res_format"]',
                     'rows': fetch_num,
                     'start': fetch_start,
                     'sort': search_params['sort'],
                     'extras': search_params['extras']
-                }))
-
+                }
                 try:
-                    req = urllib2.Request(
-                        remote_org_url + '/api/3/action/package_search', data)
-                    rsp = urllib2.urlopen(req)
-                except urllib2.URLError, err:
-                    log.warn('Unable to connect to %r: %r' % (
-                        remote_org_url + '/api/3/action/package_search', err))
-                    return None
-                content = rsp.read()
-                return json.loads(content)
+                    resp = requests.get(url, params=params)
+                except Exception as err:
+                    log.warn('Unable to connect to {}: {}'.format(url, err))
+                    return
+                if not resp.ok:
+                    print(resp.url)
+                    log.warn('[fetch data] {}: {} {}'.format(remote_org_url, resp.status_code, resp.reason))
+                    return
+
+                return resp.json()
 
             remote_results = _fetch_data(remote_start, remote_limit)
 
             # Only continue if the remote fetch was successful
-            if remote_results is None:
+            if not remote_results:
                 return search_results
 
-            if count_only:
-                remote_results['result']['results'] = []
-            else:
-                remote_results_num = len(remote_results['result']['results'])
+            result = remote_results['result']
+            search_results['count'] += result['count']
+
+            if not count_only:
+                remote_results_num = len(result['results'])
                 if remote_results_num <= remote_limit + remote_start:
-                    if remote_results['result']['count'] > remote_results_num:
+                    if result['count'] > remote_results_num:
                         # While the result count reports all remote matches, the number of results may be limited
                         # by the CKAN install. Here our query has extended beyond the actual returned results, so
                         # we re-issue a more refined query starting and ending at precisely where we want (since
                         # we have already acquired the total count)
                         temp_results = _fetch_data(remote_start, min(
-                            remote_results['result']['count'] - remote_start,
+                            result['count'] - remote_start,
                             remote_limit))
                         if temp_results:
-                            remote_results['result']['results'] = temp_results[
-                                'result']['results']
+                            result['results'] = temp_results['result']['results']
 
-            for dataset in remote_results['result']['results']:
-                extras = dataset.get('extras', [])
-                if not h.get_pkg_dict_extra(dataset, 'harvest_url'):
-                    extras += [
-                        {
+                for dataset in result['results']:
+                    extras = dataset.get('extras', [])
+                    if not h.get_pkg_dict_extra(dataset, 'harvest_url'):
+                        extras += [{
                             'key': 'harvest_url',
-                            'value': remote_org_url + '/dataset/' + dataset[
-                                'id']
-                        }
-                    ]
-                for k in search_keys:
-                    if not h.get_pkg_dict_extra(dataset, k):
-                        extras += [{'key': k, 'value': remote_org_label}]
-                if not h.get_pkg_dict_extra(dataset, 'federation_source'):
-                    extras += [{'key': 'federation_source',
-                                'value': remote_org_url}]
-                dataset.update(
-                    extras=extras, harvest_source_title=remote_org_label)
-            search_results['count'] += remote_results['result']['count']
-            if not count_only:
+                            'value': remote_org_url + '/dataset/' + dataset['id']
+                        }]
+                    for k in search_keys:
+                        if not h.get_pkg_dict_extra(dataset, k):
+                            extras += [{'key': k, 'value': remote_org_label}]
+                    if not h.get_pkg_dict_extra(dataset, 'federation_source'):
+                        extras += [{'key': 'federation_source',
+                                    'value': remote_org_url}]
+                    dataset.update(
+                        extras=extras, harvest_source_title=remote_org_label)
                 if not limit or start > search_results['count']:
                     search_results['results'] = []
                 elif toolkit.c.local_item_count < limit + start:
-                    search_results['results'] += remote_results['result'][
-                                                                'results']
-                if ('search_facets' in remote_results['result'] and
+                    search_results['results'] += result['results']
+                if ('search_facets' in result and
                         self.use_remote_facets):
-                    search_results['search_facets'] = remote_results['result'][
-                                                            'search_facets']
+                    search_results['search_facets'] = result['search_facets']
 
         # If the search has failed to produce a full page of results, we augment
         toolkit.c.local_item_count = search_results['count']
-        include_remote_datasets = toolkit.asbool(
+        with_remote = toolkit.asbool(
             config.get('ckan.search_federation.api_federation', False))
-        route_dict = toolkit.request.environ.get('pylons.routes_dict')
-        ctrl_name = route_dict.get('controller')
-        used_package_controller = True if ctrl_name == 'package' else False
-        if include_remote_datasets and used_package_controller:
-            if search_results['count'] < limit and not re.search(
-                    "|".join(self.search_fed_label_blacklist),
-                    search_params['fq'][0]):
-                for key, val in self.search_fed_dict.iteritems():
-                    _append_remote_search(
-                        self.search_fed_keys, key, val, self.search_fed_labels,
-                        self.search_fed_dataset_whitelist)
+
+        if not with_remote or c.controller != 'package':
+            return search_results
+
+        if search_results['count'] < limit and not re.search(
+                "|".join(self.search_fed_label_blacklist),
+                search_params['fq'][0]):
+            for key, val in self.search_fed_dict.iteritems():
+                _append_remote_search(
+                    self.search_fed_keys, key, val, self.search_fed_labels,
+                    self.search_fed_dataset_whitelist)
 
         return search_results
+
+
+def _update_fq(fq, fq_list, type_whitelist):
+    for fq_entry in fq_list:
+        fq_entry = fq_entry.replace('/"', '"').replace("//", "")
+        fq_split = fq_entry.split(':', 1)
+        if len(fq_split) == 2:
+            fq_key, fq_value = fq_split
+            fq_monop = ""
+            if fq_key[0] in ['+', '-']:
+                fq_monop = fq_entry[:1]
+                fq_key = fq_key[1:]
+
+            # Dataset whitelist check
+            if (fq_key == 'dataset_type' and
+                    fq_monop != "-" and
+                    fq_value not in type_whitelist):
+                return
+            fq += " " + fq_monop + fq_key + ":" + fq_value
+        else:
+            fq += fq_entry
+    return fq
