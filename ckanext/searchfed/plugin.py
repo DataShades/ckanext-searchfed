@@ -2,7 +2,6 @@ import logging
 import requests
 import re
 import copy
-from functools import reduce
 
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
@@ -101,9 +100,9 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             else:
                 remote_limit = limit
                 if current_page > 1:
-                    remote_start = limit - toolkit.c.local_item_count + limit * (
-                        current_page - 2
-                    )
+                    remote_start = (
+                        limit - toolkit.c.local_item_count + limit
+                    ) * (current_page - 2)
 
             @beaker_cache(expire=3600, query_args=True)
             def _fetch_data(fetch_start, fetch_num):
@@ -244,5 +243,5 @@ def _merge_facets(first, second):
             new_facet = new_facets.pop(f['name'], None)
             if new_facet:
                 f['count'] += new_facet['count']
-        old_group['items'].extend(new_facets)
+        old_group['items'].extend(new_facets.values())
     return result
