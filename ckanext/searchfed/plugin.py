@@ -107,15 +107,20 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             @beaker_cache(expire=3600, query_args=True)
             def _fetch_data(fetch_start, fetch_num):
                 url = remote_org_url + '/api/3/action/package_search'
+                q = search_params['q']
+                for key, value in search_params['extras'].items():
+                    if not key:
+                        continue
+                    q += '&' + key + '=' + value
                 params = {
-                    'q': search_params['q'],
+                    'q': q,
                     'fq': fq,
                     'facet.field': '["organization", "license_id", "tags", "group", "res_format"]',
                     'rows': fetch_num,
                     'start': fetch_start,
                     'sort': search_params['sort'],
-                    'extras': search_params['extras']
                 }
+
                 try:
                     resp = requests.get(url, params=params)
                 except Exception as err:
