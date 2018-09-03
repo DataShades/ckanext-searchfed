@@ -85,9 +85,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 '-{}:{}'.format(key, val) for key in search_keys
                 for val in fed_labels if key and val
             )
-            fq = _update_fq(
-                fq, toolkit.aslist(search_params['fq'][0]), type_whitelist
-            )
+            fq += ' ' + search_params['fq'][0]
 
             count_only = False
             start = search_params.get('start', 0)
@@ -210,29 +208,6 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 )
 
         return search_results
-
-
-def _update_fq(fq, fq_list, type_whitelist):
-    for fq_entry in fq_list:
-        fq_entry = fq_entry.replace('/"', '"').replace("//", "")
-        fq_split = fq_entry.split(':', 1)
-        if len(fq_split) == 2:
-            fq_key, fq_value = fq_split
-            fq_monop = ""
-            if fq_key[0] in ['+', '-']:
-                fq_monop = fq_entry[:1]
-                fq_key = fq_key[1:]
-
-            # Dataset whitelist check
-            if (
-                fq_key == 'dataset_type' and fq_monop != "-"
-                and fq_value not in type_whitelist
-            ):
-                return
-            fq += " " + fq_monop + fq_key + ":" + fq_value
-        else:
-            fq += fq_entry
-    return fq
 
 
 def _merge_facets(first, second):
