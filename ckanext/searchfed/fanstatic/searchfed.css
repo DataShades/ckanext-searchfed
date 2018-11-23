@@ -21,3 +21,8 @@
 .dataset-heading .dataset-label-inverse:hover, .dataset-heading .dataset-label-inverse:focus {
     text-decoration: none;
 }
+
+.dataset-normal {
+    font-size: 14px;
+    margin-right: 10px;
+}
