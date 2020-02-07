@@ -1,3 +1,5 @@
+from __future__ import print_function
+from builtins import zip
 import logging
 import requests
 import re
@@ -6,10 +8,8 @@ import six
 
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
-# import pylons.config as config
 import ckan.lib.helpers as h
 
-from pylons.decorators.cache import beaker_cache
 from ckan.lib.base import abort
 from ckan.common import request, c
 from ckan.plugins.toolkit import config
@@ -25,16 +25,16 @@ class SearchfedPlugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IPackageController, inherit=True)
 
     search_fed_dict = dict(
-        zip(
+        list(zip(
             *[iter(toolkit.aslist(config.
                                   get('ckan.search_federation', [])))] * 2
-        )
+        ))
     )
     search_fed_this_label = config.get('ckan.search_federation.label', '')
     search_fed_keys = toolkit.aslist(
         config.get('ckan.search_federation.extra_keys', 'harvest_portal')
     )
-    search_fed_labels = search_fed_dict.keys() + [search_fed_this_label]
+    search_fed_labels = list(search_fed_dict.keys()) + [search_fed_this_label]
     use_remote_facets = toolkit.asbool(
         config.get('ckan.search_federation.use_remote_facet_results', False)
     )
@@ -112,7 +112,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             def _fetch_data(fetch_start, fetch_num):
                 url = remote_org_url + '/api/3/action/package_search'
                 q = search_params['q']
-                for key, value in search_params['extras'].items():
+                for key, value in list(search_params['extras'].items()):
                     if not key:
                         continue
                     q += '&' + key + '=' + value
@@ -221,13 +221,13 @@ def _merge_facets(first, second):
     data = {
         k: {f['name']: f
             for f in group['items']}
-        for k, group in second.items()
+        for k, group in list(second.items())
     }
-    for key, new_facets in data.items():
+    for key, new_facets in list(data.items()):
         old_group = result.setdefault(key, {'items': [], 'title': key})
         for f in old_group['items']:
             new_facet = new_facets.pop(f['name'], None)
             if new_facet:
                 f['count'] += new_facet['count']
-        old_group['items'].extend(new_facets.values())
+        old_group['items'].extend(list(new_facets.values()))
     return result
