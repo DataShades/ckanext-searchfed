@@ -2,11 +2,11 @@
 
 {% block form %}
     {% set facets = {
-      'fields': g.fields_grouped,
-      'search': g.search_facets,
-      'titles': g.facet_titles,
-      'translated_fields': g.translated_fields,
-      'remove_field': g.remove_field }
+      'fields': fields_grouped,
+      'search': search_facets,
+      'titles': facet_titles,
+      'translated_fields': translated_fields,
+      'remove_field': remove_field }
     %}
     {% set sorting = [
       (_('Relevance'), 'score desc, metadata_modified desc'),
@@ -16,8 +16,8 @@
       (_('Last Modified'), 'metadata_modified desc'),
       (_('Popular'), 'views_recent desc') if g.tracking_enabled else (false, false) ]
     %}
-    {% snippet 'snippets/search_form.html', type='dataset', query=g.q, sorting=sorting, sorting_selected=g.sort_by_selected, count=g.local_item_count, facets=facets, show_empty=request.params, error=g.query_error, fields=g.fields %}
+    {% snippet 'snippets/search_form.html', type='dataset', query=q, sorting=sorting, sorting_selected=sort_by_selected, count=g.page.item_count, facets=facets, show_empty=request.params, error=query_error, fields=fields %}
 {% endblock %}
 {% block package_search_results_list %}
-    {{ h.snippet('snippets/search_fed_package_list.html', packages=g.page.items) }}
+    {{ h.snippet('snippets/search_fed_package_list.html', packages=page.items) }}
 {% endblock %}
