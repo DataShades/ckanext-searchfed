@@ -29,13 +29,11 @@ Example:
                     {% if loop.index+g.local_item_count <= g.local_item_count %}
                         {% snippet 'snippets/search_fed_package_item.html', package=package, item_class=item_class, hide_resources=hide_resources, banner=banner, truncate=truncate, truncate_title=truncate_title %}
                     {% else %}
-
-                        {% if h.get_pkg_dict_extra(package,'harvest_portal') %}
+                        {% if h.get_pkg_dict_extra(package,'harvest_portal') and first_remote_package%}
+                            {% set first_remote_package = False %}
                             {% if g.local_item_count == 0 and request.args.get('page',1) == 1 and loop.changed(first_remote_package) %}
-                                {% set first_remote_package = False %}
                                 <li class="dataset-item"><center><h2>There are no results on {{ g.site_title }} for this search but we can show results from other sites below</h2></center></li>
                             {% elif loop.changed(first_remote_package) %}
-                                {% set first_remote_package = False %}
                                 <li class="dataset-item"><center><h1>Results from other Australian data portals</h1></center></li>
                             {% endif %}
                         {% endif %}
