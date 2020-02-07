@@ -2,16 +2,21 @@ import logging
 import requests
 import re
 import copy
+import six
 
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
-import pylons.config as config
+# import pylons.config as config
 import ckan.lib.helpers as h
 
 from pylons.decorators.cache import beaker_cache
 from ckan.lib.base import abort
 from ckan.common import request, c
+from ckan.plugins.toolkit import config
 
+from beaker.cache import CacheManager
+
+cache = CacheManager()
 log = logging.getLogger(__name__)
 
 
@@ -102,7 +107,8 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                         limit - toolkit.c.local_item_count + limit
                     ) * (current_page - 2)
 
-            @beaker_cache(expire=3600, query_args=True)
+            # @beaker_cache(expire=3600, query_args=True)
+            @cache.cache(query_args=True, expire=3600)
             def _fetch_data(fetch_start, fetch_num):
                 url = remote_org_url + '/api/3/action/package_search'
                 q = search_params['q']
@@ -195,13 +201,13 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             config.get('ckan.search_federation.api_federation', False)
         )
 
-        if not with_remote or c.controller != 'package':
+        if not with_remote or c.controller != 'dataset':
             return search_results
 
         if search_results['count'] < limit and not re.search(
             "|".join(self.search_fed_label_blacklist), search_params['fq'][0]
         ):
-            for key, val in self.search_fed_dict.iteritems():
+            for key, val in six.iteritems(self.search_fed_dict):
                 _append_remote_search(
                     self.search_fed_keys, key, val, self.search_fed_labels,
                     self.search_fed_dataset_whitelist
