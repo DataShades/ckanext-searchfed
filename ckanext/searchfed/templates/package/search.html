@@ -16,8 +16,8 @@
       (_('Last Modified'), 'metadata_modified desc'),
       (_('Popular'), 'views_recent desc') if g.tracking_enabled else (false, false) ]
     %}
-    {% snippet 'snippets/search_form.html', type='dataset', query=q, sorting=sorting, sorting_selected=sort_by_selected, count=g.page.item_count, facets=facets, show_empty=request.params, error=query_error, fields=fields %}
+    {% snippet 'snippets/search_form.html', type='dataset', query=q, sorting=sorting, sorting_selected=sort_by_selected, count=c.page.item_count, facets=facets, show_empty=request.params, error=query_error, fields=fields %}
 {% endblock %}
 {% block package_search_results_list %}
-    {{ h.snippet('snippets/search_fed_package_list.html', packages=page.items) }}
+    {{ h.snippet('snippets/search_fed_package_list.html', packages=c.page.items) }}
 {% endblock %}
