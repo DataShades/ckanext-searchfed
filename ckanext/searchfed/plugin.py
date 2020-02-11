@@ -4,15 +4,16 @@ import re
 import copy
 
 import ckan.plugins as plugins
-import ckan.plugins.toolkit as toolkit
-import pylons.config as config
+import ckan.plugins.toolkit as tk
+from ckantoolkit import config
 import ckan.lib.helpers as h
 
-from pylons.decorators.cache import beaker_cache
+from beaker.cache import CacheManager
 from ckan.lib.base import abort
 from ckan.common import request, c
 
 log = logging.getLogger(__name__)
+cache = CacheManager()
 
 
 class SearchfedPlugin(plugins.SingletonPlugin):
@@ -21,34 +22,33 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
     search_fed_dict = dict(
         zip(
-            *[iter(toolkit.aslist(config.
-                                  get('ckan.search_federation', [])))] * 2
+            *[iter(tk.aslist(config.get('ckan.search_federation', [])))] * 2
         )
     )
     search_fed_this_label = config.get('ckan.search_federation.label', '')
-    search_fed_keys = toolkit.aslist(
+    search_fed_keys = tk.aslist(
         config.get('ckan.search_federation.extra_keys', 'harvest_portal')
     )
-    search_fed_labels = search_fed_dict.keys() + [search_fed_this_label]
-    use_remote_facets = toolkit.asbool(
+    search_fed_labels = list(search_fed_dict.keys()) + [search_fed_this_label]
+    use_remote_facets = tk.asbool(
         config.get('ckan.search_federation.use_remote_facet_results', False)
     )
-    search_fed_label_blacklist = toolkit.aslist(
+    search_fed_label_blacklist = tk.aslist(
         config.get(
             'ckan.search_federation.label_blacklist',
             'owner_org harvest_source_id user_id'
         )
     )
-    search_fed_dataset_whitelist = toolkit.aslist(
+    search_fed_dataset_whitelist = tk.aslist(
         config.get('ckan.search_federation.dataset_whitelist', 'dataset')
     )
 
     # IConfigurer
 
     def update_config(self, config_):
-        toolkit.add_template_directory(config_, 'templates')
-        toolkit.add_public_directory(config_, 'public')
-        toolkit.add_resource('fanstatic', 'searchfed')
+        tk.add_template_directory(config_, 'templates')
+        tk.add_public_directory(config_, 'public')
+        tk.add_resource('fanstatic', 'searchfed')
 
     # IPackageController
 
@@ -99,10 +99,11 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 remote_limit = limit
                 if current_page > 1:
                     remote_start = (
-                        limit - toolkit.c.local_item_count + limit
+                        limit - tk.c.local_item_count + limit
                     ) * (current_page - 2)
 
-            @beaker_cache(expire=3600, query_args=True)
+            # @beaker_cache(expire=3600, query_args=True)
+            @cache.cache('searchfed_data', expire=3600)
             def _fetch_data(fetch_start, fetch_num):
                 url = remote_org_url + '/api/3/action/package_search'
                 q = search_params['q']
@@ -181,7 +182,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                     )
                 if not limit or start > search_results['count']:
                     search_results['results'] = []
-                elif toolkit.c.local_item_count < limit + start:
+                elif tk.c.local_item_count < limit + start:
                     search_results['results'] += result['results']
                 if ('search_facets' in result and self.use_remote_facets):
                     search_results['search_facets'] = _merge_facets(
@@ -190,8 +191,8 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                     )
 
         # If the search has failed to produce a full page of results, we augment
-        toolkit.c.local_item_count = search_results['count']
-        with_remote = toolkit.asbool(
+        tk.c.local_item_count = search_results['count']
+        with_remote = tk.asbool(
             config.get('ckan.search_federation.api_federation', False)
         )
 

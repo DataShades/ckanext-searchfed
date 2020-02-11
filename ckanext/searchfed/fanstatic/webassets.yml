@@ -1,0 +1,5 @@
+searchfed_css:
+  output: ckanext-searchfed/%(version)s_searchfed.css
+  filter: cssrewrite
+  contents:
+      - searchfed.css

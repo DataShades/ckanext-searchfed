@@ -1,0 +1,36 @@
+diff --git a/ckanext/searchfed/templates/snippets/search_fed_package_item.html b/ckanext/searchfed/templates/snippets/search_fed_package_item.html
+index 4bc98c1..c290fa7 100644
+--- a/ckanext/searchfed/templates/snippets/search_fed_package_item.html
++++ b/ckanext/searchfed/templates/snippets/search_fed_package_item.html
+@@ -66,31 +66,6 @@ Example:
+         <div>{{ notes|urlize }}</div>
+       {% endif %}
+     </div>
+-    <div class="pull-right">
+-      {% block likes %}
+-        <section id="likes-section" class="context-info">
+-            <div class="likes-inline">
+-                {% set liked = h.check_liked(package.id) %}
+-                <button 
+-                    title="{% if liked %}You like it{% else %}Like{% endif %}"
+-                    class="{% if liked %}unlike-button{% else %}like-button{% endif %} likes-btn"
+-                    data-module="nsw_likes"
+-                    data-module-entity_id="{{package.id}}"
+-                    data-module-entity_name="{{package.name}}"
+-                    data-module-entity_type="{{package.type}}">
+-                    {% if liked %}
+-                        <i class="fa fa-thumbs-up" aria-hidden="true" title="You like it"></i>
+-                    {% else %}
+-                        <i class="fa fa-thumbs-o-up" aria-hidden="true" title="Like"></i>
+-                    {% endif %}
+-                </button>
+-                <span id="likes-count">
+-                    {{ h.get_liked_count(package.id) }}
+-                </span>
+-            </div>
+-        </section>
+-      {% endblock %}
+-    </div>
+     {% if package.resources and not hide_resources %}
+       <ul class="dataset-resources unstyled">
+         {% for resource in h.dict_list_reduce(package.resources, 'format') %}
