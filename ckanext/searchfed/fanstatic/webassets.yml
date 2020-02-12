@@ -1,0 +1,4 @@
+searchfed_css:
+  output: ckanext-searchfed/searchfed.css
+  contents:
+    - searchfed.css
