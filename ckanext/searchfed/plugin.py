@@ -104,9 +104,10 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             else:
                 remote_limit = datasets_per_page
                 if current_page > 1:
-                    remote_start = (current_page * datasets_per_page) \
-                                    - toolkit.c.local_item_count \
-                                    - datasets_per_page
+                    remote_start = (current_page
+                                    * datasets_per_page
+                                    - toolkit.c.local_item_count
+                                    - datasets_per_page)
 
             q = search_params['q']
             for key, value in list(search_params['extras'].items()):
