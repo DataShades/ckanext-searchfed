@@ -196,13 +196,13 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             config.get('ckan.search_federation.api_federation', False)
         )
 
-        if not with_remote or c.controller != 'package':
+        if not with_remote or c.controller != 'dataset':
             return search_results
 
         if search_results['count'] < limit and not re.search(
             "|".join(self.search_fed_label_blacklist), search_params['fq'][0]
         ):
-            for key, val in self.search_fed_dict.iteritems():
+            for key, val in self.search_fed_dict.items():
                 _append_remote_search(
                     self.search_fed_keys, key, val, self.search_fed_labels,
                     self.search_fed_dataset_whitelist
