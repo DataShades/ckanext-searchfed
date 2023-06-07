@@ -1,7 +1,7 @@
 {% ckan_extends %}
 
 {%- block styles %}
-      {{super()}}
-      {% set type = 'asset' if h.ckan_version() > '2.9' else 'resource' %}
-      {% include 'snippets/searchfed_' ~ type ~ '.html' %}
+    {{ super() }}
+
+    {% asset 'ckanext-searchfed/searchfed_css' %}
 {% endblock %}
