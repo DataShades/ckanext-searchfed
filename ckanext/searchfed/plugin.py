@@ -1,17 +1,21 @@
+from builtins import zip
 import logging
 import requests
 import re
 import copy
+import six
 
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
-import pylons.config as config
 import ckan.lib.helpers as h
 
-from pylons.decorators.cache import beaker_cache
 from ckan.lib.base import abort
 from ckan.common import request, c
+from ckan.plugins.toolkit import config
 
+from beaker.cache import CacheManager
+
+cache = CacheManager()
 log = logging.getLogger(__name__)
 
 
@@ -20,16 +24,16 @@ class SearchfedPlugin(plugins.SingletonPlugin):
     plugins.implements(plugins.IPackageController, inherit=True)
 
     search_fed_dict = dict(
-        zip(
+        list(zip(
             *[iter(toolkit.aslist(config.
                                   get('ckan.search_federation', [])))] * 2
-        )
+        ))
     )
     search_fed_this_label = config.get('ckan.search_federation.label', '')
     search_fed_keys = toolkit.aslist(
         config.get('ckan.search_federation.extra_keys', 'harvest_portal')
     )
-    search_fed_labels = search_fed_dict.keys() + [search_fed_this_label]
+    search_fed_labels = list(search_fed_dict.keys()) + [search_fed_this_label]
     use_remote_facets = toolkit.asbool(
         config.get('ckan.search_federation.use_remote_facet_results', False)
     )
@@ -48,7 +52,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
     def update_config(self, config_):
         toolkit.add_template_directory(config_, 'templates')
         toolkit.add_public_directory(config_, 'public')
-        toolkit.add_resource('fanstatic', 'searchfed')
+        toolkit.add_resource('fanstatic', 'ckanext-searchfed')
 
     # IPackageController
 
@@ -90,42 +94,49 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             count_only = False
             start = search_params.get('start', 0)
 
+            datasets_per_page = int(config.get('ckan.datasets_per_page', 20))
             remote_start = 0
-            if local_results_num > start:
-                remote_limit = limit - local_results_num
+
+            if local_results_num > 0:
+                remote_limit = datasets_per_page - local_results_num
                 if remote_limit <= 0:
                     count_only = True
             else:
-                remote_limit = limit
+                remote_limit = datasets_per_page
                 if current_page > 1:
-                    remote_start = (
-                        limit - toolkit.c.local_item_count + limit
-                    ) * (current_page - 2)
+                    remote_start = (current_page
+                                    * datasets_per_page
+                                    - toolkit.c.local_item_count
+                                    - datasets_per_page)
 
-            @beaker_cache(expire=3600, query_args=True)
+            q = search_params['q']
+            for key, value in list(search_params['extras'].items()):
+                if not key:
+                    continue
+                q += '&' + key + '=' + value
+
+            params = {
+                'q': q,
+                'fq': fq,
+                'facet.field': '["organization", "license_id",\
+                    "tags", "group", "res_format"]',
+                'rows': remote_limit,
+                'start': remote_start,
+                'sort': search_params['sort'],
+            }
+
+            # passing params as a unique key for cache
+            @cache.cache(str(params), expire=3600)
             def _fetch_data(fetch_start, fetch_num):
                 url = remote_org_url + '/api/3/action/package_search'
-                q = search_params['q']
-                for key, value in search_params['extras'].items():
-                    if not key:
-                        continue
-                    q += '&' + key + '=' + value
-                params = {
-                    'q': q,
-                    'fq': fq,
-                    'facet.field': '["organization", "license_id", "tags", "group", "res_format"]',
-                    'rows': fetch_num,
-                    'start': fetch_start,
-                    'sort': search_params['sort'],
-                }
-
                 try:
+                    # import pdb; pdb.set_trace()
                     resp = requests.get(url, params=params)
+                    log.info('API endpoint: {}'.format(resp.url))
                 except Exception as err:
                     log.warn('Unable to connect to {}: {}'.format(url, err))
                     return
                 if not resp.ok:
-                    print(resp.url)
                     log.warn(
                         '[fetch data] {}: {} {}'.format(
                             remote_org_url, resp.status_code, resp.reason
@@ -195,13 +206,13 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             config.get('ckan.search_federation.api_federation', False)
         )
 
-        if not with_remote or c.controller != 'package':
+        if not with_remote or c.controller != 'dataset':
             return search_results
 
         if search_results['count'] < limit and not re.search(
             "|".join(self.search_fed_label_blacklist), search_params['fq'][0]
         ):
-            for key, val in self.search_fed_dict.iteritems():
+            for key, val in six.iteritems(self.search_fed_dict):
                 _append_remote_search(
                     self.search_fed_keys, key, val, self.search_fed_labels,
                     self.search_fed_dataset_whitelist
@@ -215,13 +226,13 @@ def _merge_facets(first, second):
     data = {
         k: {f['name']: f
             for f in group['items']}
-        for k, group in second.items()
+        for k, group in list(second.items())
     }
-    for key, new_facets in data.items():
+    for key, new_facets in list(data.items()):
         old_group = result.setdefault(key, {'items': [], 'title': key})
         for f in old_group['items']:
             new_facet = new_facets.pop(f['name'], None)
             if new_facet:
                 f['count'] += new_facet['count']
-        old_group['items'].extend(new_facets.values())
+        old_group['items'].extend(list(new_facets.values()))
     return result
