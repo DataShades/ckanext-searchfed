@@ -23,7 +23,7 @@ Example:
     <div class="dataset-content">
       <h3 class="dataset-heading">
         {% if package.private %}
-          <span class="dataset-private label label-inverse">
+          <span class="dataset-private badge bg-secondary">
             <i class="icon-lock"></i>
             {{ _('Private') }}
           </span>
@@ -34,28 +34,28 @@ Example:
                 {% set harvest_label = h.get_pkg_dict_extra(package,'harvest_label') %}
                 {% set domain_url = external_url.split('/dataset/')[0] %}
                 <a class="dataset-label-inverse" href="{{ domain_url }}" target="_blank">
-                    <span class="{% if harvest_label != 'normal' %}dataset-private{% else %}dataset-normal{% endif %} label label-inverse">
+                    <span class="{% if harvest_label != 'normal' %}dataset-private{% else %}dataset-normal{% endif %} badge badge-inverse">
                         <i class="fa-link icon-link"></i>
                         From {{h.get_pkg_dict_extra(package,'harvest_portal')}}
                     </span>
                 </a>
             {% else %}
-                <span class="dataset-private label label-inverse">
+                <span class="dataset-private badge bg-secondary">
                     <i class="fa-link icon-link"></i>
                     From {{h.get_pkg_dict_extra(package,'harvest_portal')}}
                 </span>
             {% endif %}
-            <a href="{{h.get_pkg_dict_extra(package,'harvest_url')}}"  data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" class="searchpartnership-url-analytics" target="_blank"> {{h.truncate(title, truncate_title)}} </a>
+            <a href="{{h.get_pkg_dict_extra(package,'harvest_url')}}"  data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" class="searchpartnership-url-analytics" target="_blank"> {{ title | truncate(truncate_title) }} </a>
         {% else %}
           {% if package.get('unpublished', '').startswith('True') %}
-            <span class="dataset-private label label-info">{{ _('Unpublished') }}</span>
+            <span class="dataset-private badge badge-info">{{ _('Unpublished') }}</span>
           {% endif %}
-          {{ h.link_to(h.truncate(title, truncate_title), h.url_for('dataset.read', id=package.name)) }}
+          {{ h.link_to(title | truncate(truncate_title), h.url_for('dataset.read', id=package.name)) }}
         {% endif %}
         {% if package.get('state', '').startswith('draft') %}
-            <span class="label label-info">{{ _('Draft') }}</span>
+            <span class="badge badge-info">{{ _('Draft') }}</span>
         {% elif package.get('state', '').startswith('deleted') %}
-            <span class="label label-important">{{ _('Deleted') }}</span>
+            <span class="badge badge-important">{{ _('Deleted') }}</span>
         {% endif %}
         {{ h.popular('recent views', package.tracking_summary.recent, min=10) if package.tracking_summary }}
       </h3>
@@ -71,9 +71,9 @@ Example:
         {% for resource in h.dict_list_reduce(package.resources, 'format') %}
           <li>
           {% if h.get_pkg_dict_extra(package,'harvest_portal') %}
-              <a href="{{h.get_pkg_dict_extra(package,'harvest_url')}}" class="label searchpartnership-url-analytics" data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" data-format="{{ resource.lower() }}">{{ resource }}</a>
+              <a href="{{h.get_pkg_dict_extra(package,'harvest_url')}}" class="badge badge-default searchpartnership-url-analytics" data-portal="{{h.get_pkg_dict_extra(package,'harvest_portal')}}" data-format="{{ resource.lower() }}">{{ resource }}</a>
           {% else %}
-              <a href="{{ h.url_for('dataset.read', id=package.name) }}" class="label" data-format="{{ resource.lower() }}">{{ resource }}</a>
+              <a href="{{ h.url_for('dataset.read', id=package.name) }}" class="badge badge-default" data-format="{{ resource.lower() }}">{{ resource }}</a>
           {% endif %}
           </li>
         {% endfor %}

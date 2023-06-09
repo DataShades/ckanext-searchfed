@@ -56,7 +56,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
     # IPackageController
 
-    def before_search(self, search_params):
+    def before_dataset_search(self, search_params):
         limit = int(
             config.get('ckan.search_federation.min_search_results', 20)
         )
@@ -64,7 +64,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         search_params['rows'] = rows if rows is not None else limit
         return search_params
 
-    def after_search(self, search_results, search_params):
+    def after_dataset_search(self, search_results, search_params):
         limit = int(
             config.get('ckan.search_federation.min_search_results', 20)
         )
@@ -206,7 +206,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             config.get('ckan.search_federation.api_federation', False)
         )
 
-        if not with_remote or c.controller != 'dataset':
+        if not with_remote or toolkit.g.blueprint != 'dataset':
             return search_results
 
         if search_results['count'] < limit and not re.search(
