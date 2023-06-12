@@ -77,7 +77,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             local_results_num = len(search_results['results'])
             # query.run increase by 1, so we need to reduce by 1
             limit = search_params.get('rows') - 1
-            current_page = request.params.get('page', 1)
+            current_page = request.args.get('page', 1)
             try:
                 current_page = int(current_page)
                 if current_page < 1:
