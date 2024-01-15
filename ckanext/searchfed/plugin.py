@@ -206,7 +206,9 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             config.get('ckan.search_federation.api_federation', False)
         )
 
-        if not with_remote or toolkit.g.blueprint != 'dataset':
+        if not with_remote or (
+            hasattr(toolkit.g, "blueprint") and toolkit.g.blueprint != "dataset"
+        ):
             return search_results
 
         if search_results['count'] < limit and not re.search(
