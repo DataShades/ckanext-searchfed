@@ -4,6 +4,7 @@ import requests
 import re
 import copy
 import six
+from flask import has_request_context
 
 import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
@@ -65,6 +66,12 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         return search_params
 
     def after_dataset_search(self, search_results, search_params):
+
+        # Skip remote dataset search if running outside a web request context
+        #  (e.g., in a CLI command)
+        if not has_request_context():
+            return search_results
+
         limit = int(
             config.get('ckan.search_federation.min_search_results', 20)
         )
