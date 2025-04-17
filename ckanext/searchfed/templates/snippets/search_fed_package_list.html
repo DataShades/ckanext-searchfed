@@ -11,7 +11,7 @@ truncate_title - The length to truncate the title to (default: 80).
 
 Example:
 
-  {% snippet 'snippets/package_list.html', packages=g.datasets %}
+  {% snippet 'snippets/package_list.html', packages=datasets %}
 
 #}
 {% block package_list %}
@@ -20,18 +20,18 @@ Example:
             {% block package_list_inner %}
                 {% set current_page = request.args.get('page',1)|int %}
                 {% if current_page > 1 %}
-                    {% set current_loop_index = namespace(value=1 + (c.page.items_per_page * (current_page - 1))) %}
+                    {% set current_loop_index = namespace(value=1 + (page.items_per_page * (current_page - 1))) %}
                 {% else %}
                     {% set current_loop_index = namespace(value=1) %}
                 {% endif %}
                 {% set first_remote_package = namespace(value=True) %}
                 {% for package in packages %}
-                    {% if current_loop_index.value <= c.local_item_count %}
+                    {% if current_loop_index.value <= g.local_item_count %}
                         {% snippet 'snippets/search_fed_package_item.html', package=package, item_class=item_class, hide_resources=hide_resources, banner=banner, truncate=truncate, truncate_title=truncate_title %}
                     {% else %}
                         {% if h.get_pkg_dict_extra(package,'harvest_portal') and first_remote_package.value %}
                             {% set first_remote_package.value = False %}
-                            {% if c.local_item_count == 0 and request.args.get('page','1') == '1' %}
+                            {% if g.local_item_count == 0 and request.args.get('page','1') == '1' %}
                                 <li class="dataset-item"><center><h2>There are no results on {{ g.site_title }} for this search but we can show results from other sites below</h2></center></li>
                             {% elif request.args.get('page','1') == '1' %}
                                 <li class="dataset-item"><center><h1>Results from other Australian data portals</h1></center></li>
