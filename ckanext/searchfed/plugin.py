@@ -108,10 +108,15 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                     )
 
             q = search_params["q"]
+
             for key, value in list(search_params["extras"].items()):
                 if not key:
                     continue
-                q += "&" + key + "=" + value
+                if isinstance(value, list):
+                    for variant in value:
+                        q += "&" + key + "=" + variant
+                else:
+                    q += "&" + key + "=" + value
 
             params = {
                 "q": q,
