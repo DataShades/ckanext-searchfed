@@ -55,7 +55,7 @@ Config Settings
 
         ckan.search_federation.use_remote_facet_results = false
 
-    5. If local results is less than ``ckan.search_federation.min_search_results`` value, searchfed will run and added more datasets below local results (if empty default value = 20):
+    5. If local results is less than ``ckan.search_federation.min_search_results`` value, searchfed will run and added more datasets below local results (if empty default value = 20; if set to -1, searchfed will run regardless of local results):
 
         ckan.search_federation.min_search_results = 3
 

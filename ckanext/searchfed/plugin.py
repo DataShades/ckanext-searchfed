@@ -10,7 +10,7 @@ import ckan.plugins.toolkit as toolkit
 import ckan.lib.helpers as h
 
 from ckan.lib.base import abort
-from ckan.common import request, c
+from ckan.common import request
 from ckan.plugins.toolkit import config
 from ckanext.toolbelt.decorators import Cache
 
@@ -39,9 +39,6 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             "owner_org harvest_source_id user_id",
         )
     )
-    search_fed_dataset_whitelist = toolkit.aslist(
-        config.get("ckan.search_federation.dataset_whitelist", "dataset")
-    )
 
     # IConfigurer
 
@@ -67,7 +64,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         limit = int(config.get("ckan.search_federation.min_search_results", 20))
 
         def _append_remote_search(
-            search_keys, remote_org_label, remote_org_url, fed_labels, type_whitelist
+            search_keys, remote_org_label, remote_org_url, fed_labels
         ):
             local_results_num = len(search_results["results"])
             # query.run increase by 1, so we need to reduce by 1
@@ -109,15 +106,6 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
             q = search_params["q"]
 
-            for key, value in list(search_params["extras"].items()):
-                if not key:
-                    continue
-                if isinstance(value, list):
-                    for variant in value:
-                        q += "&" + key + "=" + variant
-                else:
-                    q += "&" + key + "=" + value
-
             params = {
                 "q": q,
                 "fq": fq,
@@ -130,24 +118,24 @@ class SearchfedPlugin(plugins.SingletonPlugin):
 
             # passing params as a unique key for cache
             @Cache(3600)
-            def _fetch_data(fetch_start, fetch_num):
-                url = remote_org_url + "/api/3/action/package_search"
+            def _fetch_data(remote_url, remote_search_params):
+                url = remote_url + "/api/3/action/package_search"
                 try:
                     # import pdb; pdb.set_trace()
-                    resp = requests.get(url, params=params)
+                    resp = requests.get(url, params=remote_search_params)
                     log.info(f"API endpoint: {resp.url}")
                 except Exception as err:
-                    log.warn(f"Unable to connect to {url}: {err}")
+                    log.warning(f"Unable to connect to {url}: {err}")
                     return
                 if not resp.ok:
-                    log.warn(
-                        f"[fetch data] {remote_org_url}: {resp.status_code} {resp.reason}"
+                    log.warning(
+                        f"[fetch data] {remote_url}: {resp.status_code} {resp.reason}"
                     )
                     return
 
                 return resp.json()
 
-            remote_results = _fetch_data(remote_start, remote_limit)
+            remote_results = _fetch_data(remote_org_url, params)
 
             # Only continue if the remote fetch was successful
             if not remote_results:
@@ -157,20 +145,6 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             search_results["count"] += result["count"]
 
             if not count_only:
-                remote_results_num = len(result["results"])
-                if remote_results_num <= remote_limit + remote_start:
-                    if result["count"] > remote_results_num:
-                        # While the result count reports all remote matches, the number of results may be limited
-                        # by the CKAN install. Here our query has extended beyond the actual returned results, so
-                        # we re-issue a more refined query starting and ending at precisely where we want (since
-                        # we have already acquired the total count)
-                        temp_results = _fetch_data(
-                            remote_start,
-                            min(result["count"] - remote_start, remote_limit),
-                        )
-                        if temp_results:
-                            result["results"] = temp_results["result"]["results"]
-
                 for dataset in result["results"]:
                     extras = dataset.get("extras", [])
                     if not h.get_pkg_dict_extra(dataset, "harvest_url"):
@@ -207,7 +181,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         if not with_remote or (bp and bp != "dataset"):
             return search_results
 
-        if search_results["count"] < limit and not re.search(
+        if (limit == -1 or search_results["count"] < limit) and not re.search(
             "|".join(self.search_fed_label_blacklist), search_params["fq"][0]
         ):
             for key, val in six.iteritems(self.search_fed_dict):
@@ -216,7 +190,6 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                     key,
                     val,
                     self.search_fed_labels,
-                    self.search_fed_dataset_whitelist,
                 )
 
         return search_results
