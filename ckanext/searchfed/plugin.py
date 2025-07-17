@@ -1,56 +1,53 @@
-import logging
-import requests
-import re
 import copy
+import logging
+import re
+
+import requests
 import six
 from flask import has_request_context
 
-import ckan.plugins as plugins
-import ckan.plugins.toolkit as toolkit
 import ckan.lib.helpers as h
-
-from ckan.lib.base import abort
+import ckan.plugins as p
+import ckan.plugins.toolkit as tk
 from ckan.common import request
-from ckan.plugins.toolkit import config
+from ckan.lib.base import abort
+
 from ckanext.toolbelt.decorators import Cache
 
+from ckanext.searchfed import config
 
 log = logging.getLogger(__name__)
 
 
-class SearchfedPlugin(plugins.SingletonPlugin):
-    plugins.implements(plugins.IConfigurer)
-    plugins.implements(plugins.IPackageController, inherit=True)
+class SearchfedPlugin(p.SingletonPlugin):
+    p.implements(p.IConfigurer)
+    p.implements(p.IPackageController, inherit=True)
 
     search_fed_dict = dict(
-        list(zip(*[iter(toolkit.aslist(config.get("ckan.search_federation", [])))] * 2))
-    )
-    search_fed_this_label = config.get("ckan.search_federation.label", "")
-    search_fed_keys = toolkit.aslist(
-        config.get("ckan.search_federation.extra_keys", "harvest_portal")
-    )
-    search_fed_labels = list(search_fed_dict.keys()) + [search_fed_this_label]
-    use_remote_facets = toolkit.asbool(
-        config.get("ckan.search_federation.use_remote_facet_results", False)
-    )
-    search_fed_label_blacklist = toolkit.aslist(
-        config.get(
-            "ckan.search_federation.label_blacklist",
-            "owner_org harvest_source_id user_id",
+        list(
+            zip(
+                *[iter(config.search_federation())] * 2,
+                strict=False,
+            )
         )
     )
+    search_fed_this_label = config.search_federation_label()
+    search_fed_keys = config.search_fed_keys()
+    search_fed_labels = list(search_fed_dict.keys()) + [search_fed_this_label]
+    use_remote_facets = config.use_remote_facets()
+    search_fed_label_blacklist = config.search_fed_label_blacklist()
 
     # IConfigurer
 
     def update_config(self, config_):
-        toolkit.add_template_directory(config_, "templates")
-        toolkit.add_public_directory(config_, "public")
-        toolkit.add_resource("fanstatic", "ckanext-searchfed")
+        tk.add_template_directory(config_, "templates")
+        tk.add_public_directory(config_, "public")
+        tk.add_resource("fanstatic", "ckanext-searchfed")
 
     # IPackageController
 
     def before_dataset_search(self, search_params):
-        limit = int(config.get("ckan.search_federation.min_search_results", 20))
+        limit = config.min_search_results()
         rows = search_params.get("rows", None)
         search_params["rows"] = rows if rows is not None else limit
         return search_params
@@ -61,7 +58,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
         if not has_request_context():
             return search_results
 
-        limit = int(config.get("ckan.search_federation.min_search_results", 20))
+        limit = config.min_search_results()
 
         def _append_remote_search(
             search_keys, remote_org_label, remote_org_url, fed_labels
@@ -88,7 +85,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
             count_only = False
             start = search_params.get("start", 0)
 
-            datasets_per_page = int(config.get("ckan.datasets_per_page", 20))
+            datasets_per_page = int(tk.config.get("ckan.datasets_per_page", 20))
             remote_start = 0
 
             if local_results_num > 0:
@@ -100,7 +97,7 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 if current_page > 1:
                     remote_start = (
                         current_page * datasets_per_page
-                        - toolkit.g.local_item_count
+                        - tk.g.local_item_count
                         - datasets_per_page
                     )
 
@@ -126,12 +123,12 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                     log.info(f"API endpoint: {resp.url}")
                 except Exception as err:
                     log.warning(f"Unable to connect to {url}: {err}")
-                    return
+                    return None
                 if not resp.ok:
                     log.warning(
                         f"[fetch data] {remote_url}: {resp.status_code} {resp.reason}"
                     )
-                    return
+                    return None
 
                 return resp.json()
 
@@ -142,6 +139,31 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                 return search_results
 
             result = remote_results["result"]
+
+            facet_field = config.source_facet_field()
+            extras_key = config.source_extras_key()
+
+            # If the source portal facet field is used, add an item representing the
+            # current portal
+            if facet_field in search_results["facets"]:
+                search_results["facets"][facet_field][remote_org_label] = result[
+                    "count"
+                ]
+                search_results["search_facets"][facet_field]["items"].append(
+                    {
+                        "name": remote_org_label,
+                        "display_name": remote_org_label,
+                        "count": result["count"],
+                    }
+                )
+
+                # If a source portal facet filter is applied, check whether the current
+                # portal is selected. If not, exclude results from the current portal
+                # from the search results.
+                data_providers = search_params["extras"].get(extras_key)
+                if data_providers and remote_org_label not in data_providers:
+                    return None
+
             search_results["count"] += result["count"]
 
             if not count_only:
@@ -162,22 +184,22 @@ class SearchfedPlugin(plugins.SingletonPlugin):
                             {"key": "federation_source", "value": remote_org_url}
                         ]
                     dataset.update(extras=extras, harvest_source_title=remote_org_label)
+
                 if not limit or start > search_results["count"]:
                     search_results["results"] = []
-                elif toolkit.g.local_item_count < limit + start:
+                elif tk.g.local_item_count < limit + start:
                     search_results["results"] += result["results"]
+
                 if "search_facets" in result and self.use_remote_facets:
                     search_results["search_facets"] = _merge_facets(
                         search_results["search_facets"], result["search_facets"]
                     )
 
         # If the search has failed to produce a full page of results, we augment
-        toolkit.g.local_item_count = search_results["count"]
-        with_remote = toolkit.asbool(
-            config.get("ckan.search_federation.api_federation", False)
-        )
+        tk.g.local_item_count = search_results["count"]
+        with_remote = config.api_federation()
 
-        bp = toolkit.get_endpoint()[0]
+        bp = tk.get_endpoint()[0]
         if not with_remote or (bp and bp != "dataset"):
             return search_results
 

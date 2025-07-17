@@ -2,7 +2,7 @@
 ckanext-searchfed
 =============
 
-Search additional datasets by your query using CKAN package_search API similar to harvester(url from ``ckan.search_federation``). If
+Search additional datasets by your query using CKAN package_search API similar to harvester (url from ``ckan.search_federation``). If
 count of found datasets less than ``ckan.search_federation.min_search_results`` federation search will add additional results below
 local results from dataportals that set in ``ckan.search_federation`` field at your config file. If field ``ckan.search_federation``
 not set than additional search will not run.
@@ -62,6 +62,14 @@ Config Settings
     6. If true - results for API search include remote datasets. If false - only local datasets are included into API search results
 
         ckan.search_federation.api_federation = false
+
+    7. Facet field that identifies the source portal for each dataset (default value = ''). Set that field name here so searchfed knows where to look when merging facet counts and building the “Source” filter.
+
+        ckan.search_federation.source_facet_field = vocab_source_portal
+
+    8. Key in ``search_params["extras"]`` that carries the list of selected source portals (default value = ''). searchfed looks at this key to decide whether the current remote portal (remote_org_label) is among the user‑specified providers; if it isn’t or the key has no values (nothing is selected), the remote call is skipped.
+
+        ckan.search_federation.source_extras_key = source_portal
 
 ------------------------
 Development Installation
