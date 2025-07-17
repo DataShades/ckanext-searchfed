@@ -23,14 +23,7 @@ class SearchfedPlugin(p.SingletonPlugin):
     p.implements(p.IConfigurer)
     p.implements(p.IPackageController, inherit=True)
 
-    search_fed_dict = dict(
-        list(
-            zip(
-                *[iter(config.search_federation())] * 2,
-                strict=False,
-            )
-        )
-    )
+    search_fed_dict = dict(list(zip(*[iter(config.search_federation())] * 2)))
     search_fed_this_label = config.search_federation_label()
     search_fed_keys = config.search_fed_keys()
     search_fed_labels = list(search_fed_dict.keys()) + [search_fed_this_label]
